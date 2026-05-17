@@ -1,0 +1,20 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: checkout-network-partition
+  namespace: default
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces: [default]
+    labelSelectors:
+      app: checkoutservice
+  delay:
+    latency: "200ms"
+    correlation: "25"
+    jitter: "50ms"
+  loss:
+    loss: "10"
+    correlation: "25"
+  duration: "3m"

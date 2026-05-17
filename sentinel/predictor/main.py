@@ -6,8 +6,14 @@ from collector import fetch_window, compute_features
 from lstm_model import LSTMForecaster, train_model, prepare_sequence
 from risk_scorer import RiskScorer
 
+from prometheus_client import Gauge, make_asgi_app
+
 app = FastAPI(title='SENTINEL Predictor')
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'])
+
+risk_gauge = Gauge('sentinel_risk_score', 'ML risk score per service', ['service'])
+metrics_app = make_asgi_app()
+app.mount("/prometheus-metrics", metrics_app)
 
 # Updated targets to match Google Online Boutique
 TARGET_SERVICES = ['frontend', 'checkoutservice', 'cartservice', 'redis-cart']
@@ -89,6 +95,8 @@ def prediction_loop():
                     risk = min(1.0, risk + 0.15) 
                     
                 state['risk_scores'][svc] = round(risk, 3)
+                risk_gauge.labels(service=svc).set(round(risk, 3))
+                
                 if risk > RED_THRESHOLD:
                     action = f'PRE-EMPTIVE ACTION: {svc} risk={risk:.2f} — triggering recovery'
                     state['actions'].insert(0, {'time': time.strftime('%H:%M:%S'), 'msg': action, 'level': 'red'})

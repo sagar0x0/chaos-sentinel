@@ -96,7 +96,7 @@ The platform was designed to surface failure modes that conventional health chec
 
 ## ML Risk Scoring Pipeline
 
-The predictor runs a **multi-vector risk aggregation pipeline** per service on a 15-second polling interval. This is not a single metric threshold — it fuses three independent signal vectors into a single normalized risk score `[0.0, 1.0]`.
+The predictor runs a **multi-vector risk aggregation pipeline** per service on a 15-second polling interval. This is not a single metric threshold it fuses three independent signal vectors into a single normalized risk score `[0.0, 1.0]`.
 
 ### Signal Vectors
 
@@ -303,14 +303,31 @@ helm install chaos-mesh chaos-mesh/chaos-mesh \
   --set chaosDaemon.socketPath=/run/containerd/containerd.sock
 ```
 
-### 3. Configure Prometheus Port-Forward
+### 3. Deploy Grafana Dashboards
+
+We use Helm to deploy Grafana, auto-provisioned with the Prometheus datasource and SENTINEL dashboards.
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm install grafana grafana/grafana \
+  --namespace monitoring \
+  -f helm-chart/grafana/values.yaml
+
+# Get the admin password
+kubectl get secret --namespace monitoring grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+
+# Port-forward to access Grafana at http://localhost:3000
+kubectl port-forward svc/grafana 3000:80 -n monitoring
+```
+
+### 4. Configure Prometheus Port-Forward
 
 ```bash
 # Expose Prometheus locally (Predictor expects port 9091)
 kubectl port-forward svc/prometheus-operated 9091:9090 -n monitoring
 ```
 
-### 4. Run the SENTINEL Predictor
+### 5. Run the SENTINEL Predictor
 
 ```bash
 cd sentinel/predictor
@@ -320,7 +337,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 The predictor trains the IsolationForest on startup and begins polling Prometheus in ~5 seconds.
 
-### 5. Run the Decision Engine
+### 6. Run the Decision Engine
 
 ```bash
 cd sentinel/decision-engine
@@ -330,7 +347,7 @@ echo "WEBHOOK_URL=https://hooks.slack.com/services/YOUR/HOOK" > ../../.env
 python decision.py
 ```
 
-### 6. Launch the Operator Dashboard
+### 7. Launch the Operator Dashboard
 
 ```bash
 cd sentinel-ui
@@ -339,7 +356,7 @@ npm start
 # Dashboard at http://localhost:3000
 ```
 
-### 7. Inject Chaos
+### 8. Inject Chaos
 
 From the UI dashboard or CLI:
 
@@ -368,10 +385,10 @@ Static CPU thresholds are service-agnostic and brittle — a Java service idles 
 Without a 120-second cooldown, a flapping service could trigger hundreds of restart loops per hour, amplifying the incident rather than containing it. The cooldown also provides a natural stabilization window for the healing action to take effect before re-evaluation.
 
 **Why declarative `kubectl apply` for redis-cart recovery?**
-When a Kubernetes `Service` or `PersistentVolume` is deleted (a chaos scenario), a simple pod restart does not suffice — the networking fabric itself is gone. Re-applying the full manifest declaratively ensures idempotent, complete restoration without state drift.
+When a Kubernetes `Service` or `PersistentVolume` is deleted (a chaos scenario), a simple pod restart does not suffice the networking fabric itself is gone. Re-applying the full manifest declaratively ensures idempotent, complete restoration without state drift.
 
 **Why LSTM alongside IsolationForest?**
-IsolationForest is reactive — it scores the current window. The LSTM provides a forward-looking signal: if CPU is currently at 60% but the model predicts it will reach 95% in the next 5 minutes, the system can begin remediation 5 minutes before the SLO breach rather than after it.
+IsolationForest is reactive it scores the current window. The LSTM provides a forward-looking signal: if CPU is currently at 60% but the model predicts it will reach 95% in the next 5 minutes, the system can begin remediation 5 minutes before the SLO breach rather than after it.
 
 **Why an audio siren in the UI?**
 Operators monitoring multiple dashboards miss visual-only alerts. The Web Audio API siren ensures that a critical threshold breach is impossible to ignore even in a multi-screen NOC environment.
@@ -392,7 +409,7 @@ Metrics are fetched over a 5-minute rolling window with 5-second step resolution
 
 ## Key Results
 
-- **Detected OOMKill restart cascade** in `cartservice` within 15 seconds of onset — a failure mode invisible to standard Kubernetes readiness probes, which only surface full pod crashes, not thrash loops
+- **Detected OOMKill restart cascade** in `cartservice` within 15 seconds of onset a failure mode invisible to standard Kubernetes readiness probes, which only surface full pod crashes, not thrash loops
 - **Autonomous remediation restored full service health** in under 45 seconds for CPU meltdown and DDoS scenarios, including time to detect, purge chaos experiments, patch the deployment, and verify recovery
 - **Surfaced 3 failure modes undetected by existing liveness/readiness checks**: (1) gradual memory bloat in Redis that degrades cart latency 30s before OOMKill; (2) CPU-induced checkout cascade failures caused by upstream frontend saturation; (3) IDS quarantine scenarios where a healthy pod is isolated without a pod restart, leaving standard health checks green while all traffic is silently dropped
 

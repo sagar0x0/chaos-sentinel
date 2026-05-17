@@ -102,7 +102,10 @@ def decision_loop():
                     subprocess.run(["kubectl", "delete", "networkchaos,stresschaos,podchaos", "--all", "--all-namespaces"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     
                     # 2. Revert the programmatic scaling/image-corruption attacks
+                    heal_start = time.time()
                     ACTION_MAP[svc]()
+                    heal_duration = time.time() - heal_start
+                    print(f'[SENTINEL] ✅ Recovery completed in {heal_duration:.1f}s for {svc}')
                     acted_recently[svc] = time.time()
                     print('---------------------------------------------------\n')
         except Exception as e:
