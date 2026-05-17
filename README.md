@@ -8,7 +8,7 @@
 <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" />
 <img src="https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white" />
 
-# ⚔️ Chaos Sentinel
+# Chaos Sentinel
 
 ### Autonomous Chaos Engineering & Self-Healing Platform for Kubernetes Microservices
 
