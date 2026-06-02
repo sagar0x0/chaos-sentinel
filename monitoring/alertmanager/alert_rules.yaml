@@ -1,0 +1,76 @@
+groups:
+- name: chaos-sentinel.rules
+  rules:
+  
+  # 1. High CPU Alert
+  - alert: HighCPUUsage
+    expr: sum(rate(container_cpu_usage_seconds_total{namespace="default", pod=~"^frontend.*|^cartservice.*|^checkoutservice.*|^redis-cart.*"}[1m])) by (pod) > 0.8
+    for: 2m
+    labels:
+      severity: warning
+      component: cpu
+    annotations:
+      summary: "High CPU usage on pod {{ $labels.pod }}"
+      description: "Pod {{ $labels.pod }} is consuming > 80% CPU for more than 2 minutes. This may indicate a CPU spike from StressChaos or traffic flood."
+      runbook_url: "https://github.com/sagar0x0/chaos-sentinel/blob/main/docs/runbook.md#highcpuusage"
+
+  # 2. Memory Bloat Alert
+  - alert: MemoryBloat
+    expr: sum(container_memory_working_set_bytes{namespace="default", pod=~"^frontend.*|^cartservice.*|^checkoutservice.*|^redis-cart.*"}) by (pod) > 850000000
+    for: 2m
+    labels:
+      severity: critical
+      component: memory
+    annotations:
+      summary: "Memory bloat detected on {{ $labels.pod }}"
+      description: "Pod {{ $labels.pod }} memory working set is > 850MB. This typically leads to an OOMKill cascade. Auto-healing sequence may engage."
+      runbook_url: "https://github.com/sagar0x0/chaos-sentinel/blob/main/docs/runbook.md#memorybloat"
+
+  # 3. HTTP 5xx Error Rate Spike
+  - alert: High5xxErrorRate
+    expr: sum(rate(http_requests_total{namespace="default", status=~"5.."}[1m])) by (pod) > 0.5
+    for: 1m
+    labels:
+      severity: critical
+      component: network
+    annotations:
+      summary: "Elevated 5xx errors on {{ $labels.pod }}"
+      description: "Service {{ $labels.pod }} is serving > 0.5 5xx errors per second. Investigate immediate upstream saturation."
+      runbook_url: "https://github.com/sagar0x0/chaos-sentinel/blob/main/docs/runbook.md#high5xxerrorrate"
+
+  # 4. Pod CrashLoopBackOff Detection
+  - alert: PodCrashLooping
+    expr: rate(kube_pod_container_status_restarts_total{namespace="default"}[10m]) * 600 > 3
+    for: 2m
+    labels:
+      severity: warning
+      component: pod
+    annotations:
+      summary: "Pod {{ $labels.pod }} is crash looping"
+      description: "Pod {{ $labels.pod }} has restarted more than 3 times in the last 10 minutes."
+      runbook_url: "https://github.com/sagar0x0/chaos-sentinel/blob/main/docs/runbook.md#podcrashlooping"
+
+  # 5. Service Down Detection
+  - alert: ServiceDown
+    expr: up{namespace="default", pod=~"^frontend.*|^cartservice.*|^checkoutservice.*|^redis-cart.*"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      component: availability
+    annotations:
+      summary: "Service target {{ $labels.pod }} is down"
+      description: "Prometheus cannot scrape {{ $labels.pod }}. It may have been quarantined or deleted."
+      runbook_url: "https://github.com/sagar0x0/chaos-sentinel/blob/main/docs/runbook.md#servicedown"
+
+  # 6. SLO Breach (Error Budget Burn Rate)
+  - alert: SLOBreach
+    # Alerts if the 1-hour error rate consumes more than 2% of the total monthly error budget (burn rate > 14.4)
+    expr: (sum(rate(http_requests_total{status=~"5.."}[1h])) / sum(rate(http_requests_total[1h]))) > (0.001 * 14.4)
+    for: 5m
+    labels:
+      severity: critical
+      component: slo
+    annotations:
+      summary: "SLO Breach Risk: Fast Error Budget Burn"
+      description: "The error budget burn rate is > 14.4. The 99.9% availability SLO is at severe risk of being breached."
+      runbook_url: "https://github.com/sagar0x0/chaos-sentinel/blob/main/docs/runbook.md#slobreach"

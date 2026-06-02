@@ -12,7 +12,7 @@
 
 ### Autonomous Chaos Engineering & Self-Healing Platform for Kubernetes Microservices
 
-*Fault-injection at the push of a button. ML-driven anomaly detection. Autonomous recovery in the control loop.*
+*Cloud-Native SRE Platform for fault-injection, anomaly detection, and automated incident remediation.*
 
 </div>
 
@@ -20,9 +20,9 @@
 
 ## Overview
 
-Chaos Sentinel is a production-grade chaos engineering platform that closes the entire fault-injection lifecycle from **triggering controlled failures** to **detecting degradation** and **autonomously remediating** affected services without human intervention.
+Chaos Sentinel is a production-grade chaos engineering platform that closes the entire fault-injection lifecycle from **triggering controlled failures** to **detecting degradation** and **autonomously remediating** affected services without human intervention. Applying SRE principles of reliability, scalability, and automation, it bridges the gap between chaos testing and proactive incident response.
 
-Built on top of **Google's Online Boutique** (an 11-service polyglot microservices app), Chaos Sentinel deploys a three-component intelligence stack: a **Chaos Injection Layer** (Chaos Mesh), a **SENTINEL Predictor** (IsolationForest + LSTM), and a **Decision Engine** (rule-driven Kubernetes remediation actuator). A React dashboard gives operators real-time visibility into service health and a manual chaos control panel.
+Built on top of **Google's Online Boutique** (an 11-service polyglot microservices app), Chaos Sentinel deploys a robust intelligence stack: a **Chaos Injection Layer** (Chaos Mesh), a **Monitoring & Alerting Pipeline** (Prometheus + Grafana + AlertManager), a **SENTINEL Predictor** (IsolationForest + LSTM), and a **Decision Engine** (rule-driven Kubernetes remediation actuator). A React dashboard gives operators real-time visibility into service health and a manual chaos control panel.
 
 The platform was designed to surface failure modes that conventional health checks miss specifically, degradation patterns that emerge from resource contention, cascading dependencies, and network faults.
 
@@ -231,6 +231,30 @@ The React dashboard provides:
 
 ---
 
+## SRE & Observability Stack
+
+Chaos Sentinel implements core Site Reliability Engineering (SRE) practices to ensure platform stability.
+
+### 1. Prometheus Scraping & AlertManager
+A production-grade [Prometheus Scrape Configuration](monitoring/prometheus/prometheus.yml) targets Kubernetes APIs, Nodes, cAdvisor, and service endpoints via `kubernetes_sd_configs`. 
+
+AlertManager routes incidents to Slack based on [defined alert rules](monitoring/alertmanager/alert_rules.yaml), including:
+- **HighCPUUsage**: Pod CPU > 80% for 2m
+- **MemoryBloat**: Working set > 850MB (proactive OOMKill prevention)
+- **High5xxErrorRate**: 5xx spike > 0.5 req/s
+- **SLOBreach**: Error budget burn rate exceeding 14.4x
+
+### 2. SLIs & SLOs
+Service Level Objectives are defined in the [SLI/SLO Framework](docs/sli-slo.md). We track Availability (99.9% - 99.99%) and Latency (p99 < 50ms - 1000ms), using multi-window error budget burn rate alerting to avoid alert fatigue.
+
+### 3. Incident Response Runbook
+The [Incident Response Runbook](docs/runbook.md) details triage procedures, alert resolution steps for specific failure modes, threshold tuning guides, and the escalation matrix.
+
+### 4. Cloud-Native Exporter
+A pluggable [Cloud Native Metrics Exporter](sentinel/predictor/cloud_exporter.py) integrates metrics from AWS CloudWatch, Azure Monitor, and GCP Cloud Operations directly into the Prometheus pipeline for hybrid-cloud visibility.
+
+---
+
 ## Repository Structure
 
 ```
@@ -241,12 +265,29 @@ chaos-sentinel/
 │   ├── scenario4_ddos.yaml         # L7 DDoS flood (frontend)
 │   └── isolation-policy.yaml       # Zero-traffic NetworkPolicy for quarantine
 │
+├── docs/                           # SRE Documentation
+│   ├── runbook.md                  # Incident response & threshold tuning
+│   └── sli-slo.md                  # Error budget & SLI/SLO definitions
+│
+├── monitoring/                     # Prometheus & AlertManager Stack
+│   ├── prometheus/
+│   │   ├── prometheus.yml          # Scrape configs with k8s service discovery
+│   │   └── kube-prometheus-stack-values.yaml
+│   └── alertmanager/
+│       ├── alertmanager.yml        # Slack routing
+│       └── alert_rules.yaml        # CPU, Mem, 5xx, SLOBreach rules
+│
+├── scripts/                        # Bash operations scripts
+│   ├── setup-monitoring.sh         # Automated Helm deployment
+│   └── health-check.sh             # Cluster & alert validation
+│
 ├── sentinel/
 │   ├── predictor/                  # SENTINEL Predictor service
 │   │   ├── main.py                 # FastAPI app, prediction loop, chaos endpoints
 │   │   ├── collector.py            # Prometheus metric fetching & feature computation
 │   │   ├── lstm_model.py           # 2-layer LSTM forecaster (PyTorch)
 │   │   ├── risk_scorer.py          # IsolationForest anomaly scorer
+│   │   ├── cloud_exporter.py       # Exporter for AWS/GCP/Azure metrics
 │   │   └── requirements.txt
 │   │
 │   └── decision-engine/            # Autonomous remediation actuator
